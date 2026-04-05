@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import useAuthStore from '../store/authStore';
 import useThemeStore from '../store/themeStore';
+import useWhatsappAddonStore from '../store/whatsappAddonStore';
 import { getColors } from '../utils/colors';
 import { Avatar } from '../components/ui';
 
@@ -16,6 +17,12 @@ const MENU_ITEMS = [
   { section: 'Admin', items: [
     { label: 'Organizations', icon: 'business-outline', screen: 'Organizations', color: '#2563EB' },
     { label: 'Users', icon: 'people-outline', screen: 'Users', color: '#D97706' },
+    { label: 'My Plan', icon: 'ribbon-outline', screen: 'MyPlan', color: '#7C3AED', superadminOnly: true },
+    { label: 'Premium Add-ons', icon: 'flash-outline', screen: 'PremiumFeatures', color: '#F59E0B' },
+  ]},
+  // product_owner only
+  { section: 'Platform', items: [
+    { label: 'Leads', icon: 'mail-outline', screen: 'Enquiries', color: '#6366F1', ownerOnly: true },
   ]},
   { section: 'Account', items: [
     { label: 'Settings', icon: 'settings-outline', screen: 'Settings', color: '#6B7280' },
@@ -25,16 +32,25 @@ const MENU_ITEMS = [
 export default function MoreMenuScreen({ navigation }) {
   const { user, logout } = useAuthStore();
   const { isDark, toggle } = useThemeStore();
+  const { isActive: waActive, isFetched: waFetched, fetch: fetchWaAddon } = useWhatsappAddonStore();
   const C = getColors(isDark);
   const userRole = user?.role || 'employee';
+
+  useEffect(() => {
+    if (user && userRole !== 'product_owner' && !waFetched) {
+      fetchWaAddon();
+    }
+  }, [user, userRole, waFetched]);
 
   const handleLogout = async () => {
     await logout();
   };
 
   const isVisible = (item) => {
-    if (['Organizations', 'Users'].includes(item.label)) {
-      return userRole === 'superadmin' || userRole === 'org_admin';
+    if (item.ownerOnly) return userRole === 'product_owner';
+    if (item.superadminOnly) return userRole === 'superadmin';
+    if (['Organizations', 'Users', 'Premium Add-ons'].includes(item.label)) {
+      return ['product_owner', 'superadmin', 'org_admin'].includes(userRole);
     }
     return true;
   };
@@ -100,36 +116,62 @@ export default function MoreMenuScreen({ navigation }) {
                 borderColor: C.border,
                 overflow: 'hidden',
               }}>
-                {visibleItems.map((item, idx) => (
-                  <TouchableOpacity
-                    key={item.label}
-                    onPress={() => navigation.navigate(item.screen)}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 14,
-                      padding: 16,
-                      borderBottomWidth: idx < visibleItems.length - 1 ? 1 : 0,
-                      borderBottomColor: C.borderLight,
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 10,
-                      backgroundColor: item.color + '18',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <Ionicons name={item.icon} size={20} color={item.color} />
-                    </View>
-                    <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: C.text }}>
-                      {item.label}
-                    </Text>
-                    <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
-                  </TouchableOpacity>
-                ))}
+                {visibleItems.map((item, idx) => {
+                  const isWa = item.screen === 'Conversations';
+                  const isWaLocked = isWa && userRole !== 'product_owner' && !waActive;
+                  return (
+                    <TouchableOpacity
+                      key={item.label}
+                      onPress={() => {
+                        if (isWaLocked) {
+                          navigation.navigate('PremiumFeatures');
+                          return;
+                        }
+                        navigation.navigate(item.screen);
+                      }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 14,
+                        padding: 16,
+                        borderBottomWidth: idx < visibleItems.length - 1 ? 1 : 0,
+                        borderBottomColor: C.borderLight,
+                        opacity: isWaLocked ? 0.6 : 1,
+                      }}
+                      activeOpacity={isWaLocked ? 1 : 0.7}
+                    >
+                      <View style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 10,
+                        backgroundColor: isWaLocked ? C.surface : item.color + '18',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Ionicons
+                          name={item.icon}
+                          size={20}
+                          color={isWaLocked ? C.textTertiary : item.color}
+                        />
+                      </View>
+                      <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: isWaLocked ? C.textSecondary : C.text }}>
+                        {item.label}
+                      </Text>
+                      {isWaLocked ? (
+                        <View style={{
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                          borderRadius: 8,
+                          backgroundColor: C.primaryLight,
+                        }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: C.primary }}>Locked</Text>
+                        </View>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           );

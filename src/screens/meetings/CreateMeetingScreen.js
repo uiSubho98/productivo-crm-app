@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { meetingAPI, clientAPI, projectAPI } from '../../services/api';
 import useThemeStore from '../../store/themeStore';
+import useWhatsappAddonStore from '../../store/whatsappAddonStore';
 import { getColors } from '../../utils/colors';
 import { Input, Button, Card, ScreenHeader, DatePicker, TimePicker, PhoneInput } from '../../components/ui';
 
@@ -53,6 +54,7 @@ export default function CreateMeetingScreen({ route, navigation }) {
   const isEdit = !!editMeeting;
   const { isDark } = useThemeStore();
   const C = getColors(isDark);
+  const { isActive: waActive, isFetched: waFetched, fetch: fetchWaAddon } = useWhatsappAddonStore();
 
   const [form, setForm] = useState({
     title: editMeeting?.title || '',
@@ -80,6 +82,10 @@ export default function CreateMeetingScreen({ route, navigation }) {
     editMeeting?.attendees || []
   );
   const [newAttendee, setNewAttendee] = useState({ email: '', name: '', whatsapp: '', type: 'attendee' });
+
+  useEffect(() => {
+    if (!waFetched) fetchWaAddon();
+  }, []);
 
   useEffect(() => {
     setDataLoading(true);
@@ -426,7 +432,7 @@ export default function CreateMeetingScreen({ route, navigation }) {
                       <Ionicons name="checkmark-circle" size={18} color="#059669" />
                       <Text style={{ fontSize: 13, color: '#065F46', flex: 1 }}>
                         {selectedClientObj.name} ({selectedClientObj.email}) will receive email
-                        {selectedClientObj.whatsappNumber ? ' + WhatsApp' : ''} notification
+                        {waActive && selectedClientObj.whatsappNumber ? ' + WhatsApp' : ''} notification
                       </Text>
                     </View>
                   )}
@@ -549,12 +555,14 @@ export default function CreateMeetingScreen({ route, navigation }) {
                       />
                     </View>
                   </View>
-                  <PhoneInput
-                    label={null}
-                    value={newAttendee.whatsapp}
-                    onChange={(v) => setNewAttendee(prev => ({ ...prev, whatsapp: v }))}
-                    isDark={isDark}
-                  />
+                  {waActive && (
+                    <PhoneInput
+                      label={null}
+                      value={newAttendee.whatsapp}
+                      onChange={(v) => setNewAttendee(prev => ({ ...prev, whatsapp: v }))}
+                      isDark={isDark}
+                    />
+                  )}
                   <TouchableOpacity
                     onPress={handleAddAttendee}
                     disabled={!newAttendee.email.trim()}
@@ -572,7 +580,8 @@ export default function CreateMeetingScreen({ route, navigation }) {
               </Card>
 
               <Text style={{ fontSize: 11, color: C.textTertiary, marginBottom: 24, paddingHorizontal: 4 }}>
-                All attendees receive an email invite. Those with a WhatsApp number also get a WhatsApp message.
+                All attendees receive an email invite.
+                {waActive ? ' Those with a WhatsApp number also get a WhatsApp message.' : ''}
               </Text>
 
               <Button onPress={handleSubmit} loading={loading} size="lg" isDark={isDark} style={{ marginTop: 8 }}>

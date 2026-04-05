@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { authAPI } from '../services/api';
 
+// Stores that need to be reset on logout register here
+const _resetCallbacks = [];
+export const registerStoreReset = (fn) => _resetCallbacks.push(fn);
+
 const useAuthStore = create((set, get) => ({
   user: null,
   token: null,
@@ -65,6 +69,22 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
+  signupVerifyOtp: async (email, otp) => {
+    set({ isLoading: true, error: null });
+    try {
+      const res = await authAPI.signupVerifyOtp({ email, otp });
+      const { token, user } = res.data?.data || res.data;
+      await SecureStore.setItemAsync('token', token);
+      await SecureStore.setItemAsync('user', JSON.stringify(user));
+      set({ user, token, isLoading: false, error: null });
+      return { success: true };
+    } catch (err) {
+      const message = err.response?.data?.message || err.response?.data?.error || 'Verification failed';
+      set({ isLoading: false, error: message });
+      return { success: false, error: message };
+    }
+  },
+
   verifyMpin: async (mpin) => {
     try {
       const res = await authAPI.verifyMpin({ mpin });
@@ -79,6 +99,7 @@ const useAuthStore = create((set, get) => ({
     // Keep token in SecureStore so MPIN/biometric login still works after logout.
     // Only clear in-memory state so the app shows the login screen.
     set({ user: null, token: null, error: null });
+    _resetCallbacks.forEach((fn) => fn());
   },
 
   clearError: () => set({ error: null }),

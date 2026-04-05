@@ -34,19 +34,19 @@ export default function ForgotPasswordScreen({ navigation }) {
       await authAPI.forgotPassword({ email: email.trim().toLowerCase() });
       setStep('otp');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to send OTP');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to send OTP');
     }
     setLoading(false);
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length !== 6) { setError('Enter the 6-digit OTP'); return; }
+    if (otp.length !== 4) { setError('Enter the 4-digit OTP'); return; }
     setLoading(true); setError('');
     try {
       await authAPI.verifyOtp({ email: email.trim().toLowerCase(), otp });
       setStep('reset');
     } catch (err) {
-      setError(err.response?.data?.message || 'Invalid OTP');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Invalid OTP');
     }
     setLoading(false);
   };
@@ -60,14 +60,14 @@ export default function ForgotPasswordScreen({ navigation }) {
       setSuccessMsg('Password reset successfully!');
       setTimeout(() => navigation.goBack(), 2000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to reset password');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to reset password');
     }
     setLoading(false);
   };
 
   const stepTitles = {
-    email: { title: 'Forgot Password', subtitle: 'Enter your email to receive a reset code' },
-    otp: { title: 'Enter OTP', subtitle: `We sent a 6-digit code to ${email}` },
+    email: { title: 'Forgot Password', subtitle: 'Enter your email to receive a 4-digit OTP' },
+    otp: { title: 'Enter OTP', subtitle: `We sent a 4-digit code to ${email}` },
     reset: { title: 'New Password', subtitle: 'Choose a strong new password' },
   };
 
@@ -165,13 +165,13 @@ export default function ForgotPasswordScreen({ navigation }) {
           {step === 'otp' && (
             <View>
               <Input
-                label="6-Digit OTP"
+                label="4-Digit OTP"
                 icon="key-outline"
                 placeholder="Enter OTP"
                 value={otp}
                 onChangeText={setOtp}
                 keyboardType="number-pad"
-                maxLength={6}
+                maxLength={4}
                 isDark={isDark}
                 style={{ marginBottom: 24 }}
                 inputStyle={{ textAlign: 'center', letterSpacing: 6, fontSize: 22, fontWeight: '700' }}

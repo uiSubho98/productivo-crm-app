@@ -12,6 +12,8 @@ import { getColors } from '../utils/colors';
 // Auth screens
 import LoginScreen from '../screens/auth/LoginScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import SignupScreen from '../screens/auth/SignupScreen';
+import SetupOrgScreen from '../screens/auth/SetupOrgScreen';
 
 // Main screens
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
@@ -36,6 +38,7 @@ import OrganizationsScreen from '../screens/organizations/OrganizationsScreen';
 import OrganizationDetailScreen from '../screens/organizations/OrganizationDetailScreen';
 import CreateOrganizationScreen from '../screens/organizations/CreateOrganizationScreen';
 import UsersScreen from '../screens/users/UsersScreen';
+import EnquiriesScreen from '../screens/enquiries/EnquiriesScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -102,12 +105,17 @@ function MoreTab() {
       <MoreStack.Screen name="OrganizationDetail" component={OrganizationDetailScreen} />
       <MoreStack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
       <MoreStack.Screen name="Users" component={UsersScreen} />
+      <MoreStack.Screen name="Enquiries" component={EnquiriesScreen} />
+      <MoreStack.Screen name="PremiumFeatures" component={PremiumFeaturesScreen} />
       <MoreStack.Screen name="Settings" component={SettingsScreen} />
+      <MoreStack.Screen name="MyPlan" component={MyPlanScreen} />
     </MoreStack.Navigator>
   );
 }
 
 import MoreMenuScreen from '../screens/MoreMenuScreen';
+import PremiumFeaturesScreen from '../screens/premium/PremiumFeaturesScreen';
+import MyPlanScreen from '../screens/settings/MyPlanScreen';
 
 function MainTabs({ isDark }) {
   const C = getColors(isDark);
@@ -197,17 +205,24 @@ export default function AppNavigator() {
     ? { ...DarkTheme, colors: { ...DarkTheme.colors, background: '#030712', card: '#111827', border: '#1F2937' } }
     : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#F9FAFB', card: '#FFFFFF', border: '#E5E7EB' } };
 
+  const { user } = useAuthStore();
+  const needsOrgSetup = token && user && user.role === 'superadmin' && !user.organizationId;
+
   return (
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {token ? (
+        {token && !needsOrgSetup ? (
           <Stack.Screen name="Main">
             {() => <MainTabs isDark={isDark} />}
           </Stack.Screen>
+        ) : token && needsOrgSetup ? (
+          <Stack.Screen name="SetupOrg" component={SetupOrgScreen} />
         ) : (
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="SetupOrg" component={SetupOrgScreen} />
           </>
         )}
       </Stack.Navigator>

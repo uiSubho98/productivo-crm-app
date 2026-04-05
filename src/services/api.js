@@ -1,13 +1,9 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
-// For Android emulator: 10.0.2.2 maps to host machine's localhost
-// For physical device: use your machine's LAN IP (e.g. http://192.168.x.x:3001/api/v1)
-import { Platform } from 'react-native';
 export const API_BASE_URL =
-  Platform.OS === 'android'
-    ? 'http://10.0.2.2:3001/api/v1'
-    : 'http://localhost:3001/api/v1';
+  Constants.expoConfig?.extra?.API_URL || 'https://www.productivo.in/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -37,6 +33,8 @@ api.interceptors.response.use(
 
 export const authAPI = {
   login: (data) => api.post('/auth/login', data),
+  signupRequestOtp: (data) => api.post('/auth/signup/request-otp', data),
+  signupVerifyOtp: (data) => api.post('/auth/signup/verify-otp', data),
   getProfile: () => api.get('/auth/profile'),
   updateProfile: (data) => api.put('/auth/profile', data),
   setupBiometric: (data) => api.put('/auth/biometric', data),
@@ -155,6 +153,7 @@ export const whatsappAPI = {
 };
 
 export const superAdminAPI = {
+  getUsers: (params) => api.get('/superadmin/users', { params }),
   getOverview: () => api.get('/superadmin/overview'),
   getLogs: (params) => api.get('/superadmin/logs', { params }),
 };
@@ -163,6 +162,19 @@ export const locationAPI = {
   getStates: () => api.get('/location/states'),
   getCities: (stateIso2) => api.get(`/location/cities/${stateIso2}`),
   getUsage: () => api.get('/location/usage'),
+};
+
+export const enquiryAPI = {
+  getAll: (params) => api.get('/enquiries', { params }),
+  update: (id, data) => api.patch(`/enquiries/${id}`, data),
+  submitPremium: (data) => api.post('/enquiries/premium', data),
+};
+
+export const featureFlagAPI = {
+  getMyWhatsapp: () => api.get('/feature-flags/whatsapp/me'),
+  listWhatsapp: () => api.get('/feature-flags/whatsapp'),
+  getWhatsapp: (superadminId) => api.get(`/feature-flags/whatsapp/${superadminId}`),
+  setWhatsapp: (superadminId, data) => api.put(`/feature-flags/whatsapp/${superadminId}`, data),
 };
 
 export default api;

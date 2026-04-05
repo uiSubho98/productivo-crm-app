@@ -126,6 +126,7 @@ export default function LoginScreen({ navigation }) {
   const [savedName, setSavedName] = useState('');
   const [savedEmail, setSavedEmail] = useState('');
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricType, setBiometricType] = useState(null);
   const [mpinEnabled, setMpinEnabled] = useState(false);
   const [shake] = useState(new Animated.Value(0));
@@ -186,17 +187,22 @@ export default function LoginScreen({ navigation }) {
   };
 
   const init = async () => {
-    // 1. Check biometric hardware
+    // 1. Check biometric hardware AND user preference
+    let bioEnabled = false;
     try {
       const hasHw = await LocalAuthentication.hasHardwareAsync();
       const enrolled = await LocalAuthentication.isEnrolledAsync();
       if (hasHw && enrolled) {
-        bioAvailableRef.current = true;
         setBiometricAvailable(true);
         const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
         setBiometricType(
           types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION) ? 'face' : 'fingerprint'
         );
+        // Only treat biometric as usable if user explicitly enabled it in Settings
+        const bioFlag = await SecureStore.getItemAsync('biometric_enabled');
+        bioEnabled = bioFlag === 'true';
+        setBiometricEnabled(bioEnabled);
+        bioAvailableRef.current = bioEnabled;
       }
     } catch {}
 
@@ -214,16 +220,14 @@ export default function LoginScreen({ navigation }) {
       const token = await SecureStore.getItemAsync('token');
 
       if (mpinFlag === 'true') {
-        // Always show PIN screen if MPIN was set up (even without token — they'll see error on submit)
         setMpinEnabled(true);
         setScreen('pin');
-        // Auto-trigger biometric after screen renders
-        if (bioAvailableRef.current && token) {
+        // Auto-trigger biometric only if user enabled it AND token exists
+        if (bioEnabled && token) {
           setTimeout(doBiometric, 700);
         }
       } else {
         setScreen('password');
-        // Show biometric button on password screen too if available + token exists
       }
     } catch {
       setScreen('password');
@@ -347,7 +351,7 @@ export default function LoginScreen({ navigation }) {
             <KeyPad
               onPress={handlePinKey}
               onDelete={handlePinDelete}
-              onBiometric={biometricAvailable ? doBiometric : null}
+              onBiometric={biometricEnabled ? doBiometric : null}
               biometricIcon={biometricIcon}
             />
             {/* Use password link */}
@@ -435,7 +439,15 @@ export default function LoginScreen({ navigation }) {
             Sign In
           </Button>
 
-          {(mpinEnabled || biometricAvailable) && (
+          {/* Sign up free */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, marginBottom: 16 }}>
+            <Text style={{ fontSize: 14, color: C.textSecondary }}>New to Productivo?</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+              <Text style={{ fontSize: 14, color: C.primary, fontWeight: '700' }}>Sign up free</Text>
+            </TouchableOpacity>
+          </View>
+
+          {(mpinEnabled || biometricEnabled) && (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
                 <View style={{ flex: 1, height: 1, backgroundColor: C.border }} />
@@ -456,7 +468,7 @@ export default function LoginScreen({ navigation }) {
                     <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>PIN Login</Text>
                   </TouchableOpacity>
                 )}
-                {biometricAvailable && (
+                {biometricEnabled && (
                   <TouchableOpacity
                     onPress={doBiometric}
                     style={{
