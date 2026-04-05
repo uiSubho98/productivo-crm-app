@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "Productivo",
+    "slug": "productivo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.productivo.app",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Use Face ID / Touch ID to authenticate quickly",
+        "NSCameraUsageDescription": "Used to capture photos for attachments",
+        "NSPhotoLibraryUsageDescription": "Used to attach photos to tasks and invoices"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.productivo.app",
+      "enableDangerousExperimentalLeanBuilds": false,
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-local-authentication",
+      "expo-secure-store",
+      "expo-font",
+      "expo-asset",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Productivo to access your photos for attachments and logos.",
+          "cameraPermission": "Allow Productivo to use your camera to capture photos."
+        }
+      ],
+      "expo-document-picker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563EB",
+          "sounds": []
+        }
+      ]
+    ],
+    "scheme": "productivo",
+    "extra": {
+      "API_URL": "http://localhost:3001/api/v1"
+    }
+  }
+}
