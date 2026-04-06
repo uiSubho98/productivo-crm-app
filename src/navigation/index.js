@@ -17,6 +17,7 @@ import SetupOrgScreen from '../screens/auth/SetupOrgScreen';
 
 // Main screens
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
+import ProductOwnerDashboardScreen from '../screens/dashboard/ProductOwnerDashboardScreen';
 import TasksScreen from '../screens/tasks/TasksScreen';
 import TaskDetailScreen from '../screens/tasks/TaskDetailScreen';
 import CreateTaskScreen from '../screens/tasks/CreateTaskScreen';
@@ -117,30 +118,46 @@ import MoreMenuScreen from '../screens/MoreMenuScreen';
 import PremiumFeaturesScreen from '../screens/premium/PremiumFeaturesScreen';
 import MyPlanScreen from '../screens/settings/MyPlanScreen';
 
-function MainTabs({ isDark }) {
+function MainTabs({ isDark, role }) {
   const C = getColors(isDark);
+  const isProductOwner = role === 'product_owner';
+
+  const tabBarScreenOptions = ({ route }) => ({
+    headerShown: false,
+    tabBarIcon: ({ focused, color, size }) => {
+      const icons = TAB_ICONS[route.name] || { active: 'ellipse', inactive: 'ellipse-outline' };
+      return <Ionicons name={focused ? icons.active : icons.inactive} size={size} color={color} />;
+    },
+    tabBarActiveTintColor: C.primary,
+    tabBarInactiveTintColor: C.textTertiary,
+    tabBarStyle: {
+      backgroundColor: C.card,
+      borderTopColor: C.border,
+      borderTopWidth: 1,
+      height: 60,
+      paddingBottom: 8,
+      paddingTop: 4,
+    },
+    tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+  });
+
+  if (isProductOwner) {
+    return (
+      <Tab.Navigator screenOptions={tabBarScreenOptions}>
+        <Tab.Screen name="Dashboard" component={ProductOwnerDashboardScreen} />
+        <Tab.Screen
+          name="More"
+          component={MoreTab}
+          listeners={({ navigation }) => ({
+            tabPress: () => navigation.navigate('More', { screen: 'MoreMenu' }),
+          })}
+        />
+      </Tab.Navigator>
+    );
+  }
 
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarIcon: ({ focused, color, size }) => {
-          const icons = TAB_ICONS[route.name] || { active: 'ellipse', inactive: 'ellipse-outline' };
-          return <Ionicons name={focused ? icons.active : icons.inactive} size={size} color={color} />;
-        },
-        tabBarActiveTintColor: C.primary,
-        tabBarInactiveTintColor: C.textTertiary,
-        tabBarStyle: {
-          backgroundColor: C.card,
-          borderTopColor: C.border,
-          borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 4,
-        },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-      })}
-    >
+    <Tab.Navigator screenOptions={tabBarScreenOptions}>
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen
         name="Tasks"
@@ -175,7 +192,7 @@ function MainTabs({ isDark }) {
 }
 
 export default function AppNavigator() {
-  const { token, isInitialized, initialize } = useAuthStore();
+  const { token, user, isInitialized, initialize } = useAuthStore();
   const { isDark, initialize: initTheme } = useThemeStore();
 
   useEffect(() => {
@@ -205,7 +222,6 @@ export default function AppNavigator() {
     ? { ...DarkTheme, colors: { ...DarkTheme.colors, background: '#030712', card: '#111827', border: '#1F2937' } }
     : { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: '#F9FAFB', card: '#FFFFFF', border: '#E5E7EB' } };
 
-  const { user } = useAuthStore();
   const needsOrgSetup = token && user && user.role === 'superadmin' && !user.organizationId;
 
   return (
@@ -213,7 +229,7 @@ export default function AppNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {token && !needsOrgSetup ? (
           <Stack.Screen name="Main">
-            {() => <MainTabs isDark={isDark} />}
+            {() => <MainTabs isDark={isDark} role={user?.role} />}
           </Stack.Screen>
         ) : token && needsOrgSetup ? (
           <Stack.Screen name="SetupOrg" component={SetupOrgScreen} />
