@@ -33,9 +33,11 @@ api.interceptors.response.use(
 
 export const authAPI = {
   login: (data) => api.post('/auth/login', data),
+  signup: (data) => api.post('/auth/register', data),
   signupRequestOtp: (data) => api.post('/auth/signup/request-otp', data),
   signupVerifyOtp: (data) => api.post('/auth/signup/verify-otp', data),
   getProfile: () => api.get('/auth/profile'),
+  getSubscription: () => api.get('/subscription'),
   updateProfile: (data) => api.put('/auth/profile', data),
   setupBiometric: (data) => api.put('/auth/biometric', data),
   setupMpin: (data) => api.post('/auth/mpin/setup', data),
@@ -43,6 +45,14 @@ export const authAPI = {
   forgotPassword: (data) => api.post('/auth/forgot-password', data),
   verifyOtp: (data) => api.post('/auth/verify-otp', data),
   resetPassword: (data) => api.post('/auth/reset-password', data),
+  deleteOwnAccount: () => api.delete('/auth/account'),
+  // Phone profile flow
+  setPhone: (phoneNumber) => api.post('/auth/profile/phone', { phoneNumber }),
+  updatePhone: (phoneNumber) => api.patch('/auth/profile/phone', { phoneNumber }),
+  requestPhoneChange: (reason) => api.post('/auth/profile/phone/request-change', { reason }),
+  listPhoneRequests: () => api.get('/auth/phone-change-requests'),
+  approvePhoneRequest: (id, note) => api.post(`/auth/phone-change-requests/${id}/approve`, { note }),
+  rejectPhoneRequest: (id, note) => api.post(`/auth/phone-change-requests/${id}/reject`, { note }),
 };
 
 export const taskAPI = {
@@ -57,6 +67,21 @@ export const taskAPI = {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 30000,
   }),
+  // Task timer
+  getTimer: (id) => api.get(`/tasks/${id}/timer`),
+  startTimer: (id) => api.post(`/tasks/${id}/timer/start`),
+  stopTimer: (id, note) => api.post(`/tasks/${id}/timer/stop`, { note }),
+  getTimeLogs: (id) => api.get(`/tasks/${id}/time-logs`),
+};
+
+export const attendanceAPI = {
+  clockIn: () => api.post('/attendance/clock-in'),
+  clockOut: () => api.post('/attendance/clock-out'),
+  myToday: () => api.get('/attendance/me/today'),
+  myHistory: (params) => api.get('/attendance/me', { params }),
+  adminList: (params) => api.get('/attendance', { params }),
+  listMembers: () => api.get('/attendance/members'),
+  exportExcel: (params) => api.get('/attendance/export', { params, responseType: 'blob' }),
 };
 
 export const projectAPI = {
@@ -76,6 +101,7 @@ export const clientAPI = {
   delete: (id) => api.delete(`/clients/${id}`),
   updatePipeline: (id, data) => api.patch(`/clients/${id}/pipeline`, data),
   addNote: (id, data) => api.post(`/clients/${id}/notes`, data),
+  getByPipeline: () => api.get('/clients/pipeline'),
 };
 
 export const meetingAPI = {
@@ -86,6 +112,8 @@ export const meetingAPI = {
   delete: (id) => api.delete(`/meetings/${id}`),
   cancel: (id) => api.post(`/meetings/${id}/cancel`),
   addNotes: (id, data) => api.put(`/meetings/${id}/notes`, data),
+  generateNotesPdf: (id) => api.post(`/meetings/${id}/notes/generate-pdf`),
+  sendNotes: (id) => api.post(`/meetings/${id}/notes/send`),
 };
 
 export const invoiceAPI = {
@@ -95,6 +123,8 @@ export const invoiceAPI = {
   update: (id, data) => api.put(`/invoices/${id}`, data),
   revise: (id, data) => api.post(`/invoices/${id}/revise`, data),
   generatePdf: (id) => api.post(`/invoices/${id}/generate-pdf`),
+  download: (id) => api.get(`/invoices/${id}/download`, { responseType: 'blob' }),
+  downloadReceipt: (id, paymentId) => api.get(`/invoices/${id}/receipt${paymentId ? `?paymentId=${paymentId}` : ''}`, { responseType: 'blob' }),
   send: (id, data) => api.post(`/invoices/${id}/send`, data),
   addPayment: (id, data) => api.post(`/invoices/${id}/payments`, data),
   updatePayment: (id, paymentId, data) => api.put(`/invoices/${id}/payments/${paymentId}`, data),
@@ -114,9 +144,18 @@ export const organizationAPI = {
   getById: (id) => api.get(`/organizations/${id}`),
   create: (data) => api.post('/organizations', data),
   update: (id, data) => api.put(`/organizations/${id}`, data),
+  delete: (id) => api.delete(`/organizations/${id}`),
   getMembers: (id) => api.get(`/organizations/${id}/members`),
   addMember: (id, data) => api.post(`/organizations/${id}/members`, data),
   removeMember: (orgId, userId) => api.delete(`/organizations/${orgId}/members/${userId}`),
+  updateInvoicePermission: (id, canViewInvoices) => api.patch(`/organizations/${id}/invoice-permission`, { canViewInvoices }),
+  getTree: () => api.get('/organizations/tree'),
+};
+
+export const projectMembersAPI = {
+  add: (projectId, data) => api.post(`/projects/${projectId}/members`, data),
+  update: (projectId, memberId, data) => api.put(`/projects/${projectId}/members/${memberId}`, data),
+  remove: (projectId, memberId) => api.delete(`/projects/${projectId}/members/${memberId}`),
 };
 
 export const userAPI = {
@@ -127,8 +166,9 @@ export const userAPI = {
 };
 
 export const paymentAccountAPI = {
-  getAll: () => api.get('/payment-accounts'),
+  getAll: (params) => api.get('/payment-accounts', { params }),
   create: (data) => api.post('/payment-accounts', data),
+  getById: (id) => api.get(`/payment-accounts/${id}`),
   update: (id, data) => api.put(`/payment-accounts/${id}`, data),
   delete: (id) => api.delete(`/payment-accounts/${id}`),
   setDefault: (id) => api.post(`/payment-accounts/${id}/default`),
@@ -150,12 +190,33 @@ export const whatsappAPI = {
   getMessages: (phone, params) => api.get(`/whatsapp/conversations/${phone}/messages`, { params }),
   markRead: (phone) => api.patch(`/whatsapp/conversations/${phone}/mark-read`),
   sendMessage: (phone, data) => api.post(`/whatsapp/conversations/${phone}/send`, data),
+  exchangeToken: (shortLivedToken) => api.post('/whatsapp/token/exchange', { shortLivedToken }),
+  getStats: () => api.get('/whatsapp/stats'),
 };
 
 export const superAdminAPI = {
   getUsers: (params) => api.get('/superadmin/users', { params }),
   getOverview: () => api.get('/superadmin/overview'),
   getLogs: (params) => api.get('/superadmin/logs', { params }),
+  getPayments: (params) => api.get('/superadmin/payments', { params }),
+  blockAccount: (id) => api.patch(`/superadmin/accounts/${id}/block`),
+  deleteAccount: (id) => api.delete(`/superadmin/accounts/${id}`),
+};
+
+export const usageAPI = {
+  getOverview: (params = {}) => api.get('/usage/overview', { params }),
+  listSuperadmins: () => api.get('/usage/superadmins'),
+};
+
+// Cashfree hosted-checkout flow for WhatsApp add-ons.
+// initiatePurchase returns { paymentUrl } — opened in an in-app browser on mobile.
+export const whatsappAddonAPI = {
+  getMine: () => api.get('/whatsapp-addons/me'),
+  initiatePurchase: (data) => api.post('/payments/addon/initiate', data),
+  sendInvoice: (invoiceId) => api.post(`/whatsapp-addons/send-invoice/${invoiceId}`),
+  sendTaskReminder: (taskId, data) => api.post(`/whatsapp-addons/send-task-reminder/${taskId}`, data),
+  sendMeetingInvite: (meetingId) => api.post(`/whatsapp-addons/send-meeting-invite/${meetingId}`),
+  getLogs: (params = {}) => api.get('/whatsapp-addons/logs', { params }),
 };
 
 export const locationAPI = {

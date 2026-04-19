@@ -24,6 +24,7 @@ import CreateTaskScreen from '../screens/tasks/CreateTaskScreen';
 import ProjectsScreen from '../screens/projects/ProjectsScreen';
 import ProjectDetailScreen from '../screens/projects/ProjectDetailScreen';
 import CreateProjectScreen from '../screens/projects/CreateProjectScreen';
+import ProjectMembersScreen from '../screens/projects/ProjectMembersScreen';
 import ClientsScreen from '../screens/clients/ClientsScreen';
 import ClientDetailScreen from '../screens/clients/ClientDetailScreen';
 import CreateClientScreen from '../screens/clients/CreateClientScreen';
@@ -38,8 +39,15 @@ import SettingsScreen from '../screens/settings/SettingsScreen';
 import OrganizationsScreen from '../screens/organizations/OrganizationsScreen';
 import OrganizationDetailScreen from '../screens/organizations/OrganizationDetailScreen';
 import CreateOrganizationScreen from '../screens/organizations/CreateOrganizationScreen';
+import OrgTreeScreen from '../screens/organizations/OrgTreeScreen';
 import UsersScreen from '../screens/users/UsersScreen';
+import UserDetailScreen from '../screens/users/UserDetailScreen';
 import EnquiriesScreen from '../screens/enquiries/EnquiriesScreen';
+import AttendanceScreen from '../screens/attendance/AttendanceScreen';
+import TimesheetScreen from '../screens/attendance/TimesheetScreen';
+import DataUsageScreen from '../screens/usage/DataUsageScreen';
+import SuperAdminPaymentsScreen from '../screens/superadmin/SuperAdminPaymentsScreen';
+import PhoneRequestsScreen from '../screens/settings/PhoneRequestsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -64,6 +72,7 @@ function TasksTab() {
       <TaskStack.Screen name="TasksList" component={TasksScreen} />
       <TaskStack.Screen name="TaskDetail" component={TaskDetailScreen} />
       <TaskStack.Screen name="CreateTask" component={CreateTaskScreen} />
+      <TaskStack.Screen name="PremiumFeatures" component={PremiumFeaturesScreen} />
     </TaskStack.Navigator>
   );
 }
@@ -86,6 +95,8 @@ function InvoicesTab() {
       <InvoiceStack.Screen name="InvoicesList" component={InvoicesScreen} />
       <InvoiceStack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} />
       <InvoiceStack.Screen name="CreateInvoice" component={CreateInvoiceScreen} />
+      <InvoiceStack.Screen name="PremiumFeatures" component={PremiumFeaturesScreen} />
+      <InvoiceStack.Screen name="Settings" component={SettingsScreen} />
     </InvoiceStack.Navigator>
   );
 }
@@ -98,6 +109,7 @@ function MoreTab() {
       <MoreStack.Screen name="Projects" component={ProjectsScreen} />
       <MoreStack.Screen name="ProjectDetail" component={ProjectDetailScreen} />
       <MoreStack.Screen name="CreateProject" component={CreateProjectScreen} />
+      <MoreStack.Screen name="ProjectMembers" component={ProjectMembersScreen} />
       <MoreStack.Screen name="Meetings" component={MeetingsScreen} />
       <MoreStack.Screen name="MeetingDetail" component={MeetingDetailScreen} />
       <MoreStack.Screen name="CreateMeeting" component={CreateMeetingScreen} />
@@ -105,9 +117,16 @@ function MoreTab() {
       <MoreStack.Screen name="Organizations" component={OrganizationsScreen} />
       <MoreStack.Screen name="OrganizationDetail" component={OrganizationDetailScreen} />
       <MoreStack.Screen name="CreateOrganization" component={CreateOrganizationScreen} />
+      <MoreStack.Screen name="OrgTree" component={OrgTreeScreen} />
       <MoreStack.Screen name="Users" component={UsersScreen} />
+      <MoreStack.Screen name="UserDetail" component={UserDetailScreen} />
       <MoreStack.Screen name="Enquiries" component={EnquiriesScreen} />
       <MoreStack.Screen name="PremiumFeatures" component={PremiumFeaturesScreen} />
+      <MoreStack.Screen name="Attendance" component={AttendanceScreen} />
+      <MoreStack.Screen name="Timesheet" component={TimesheetScreen} />
+      <MoreStack.Screen name="DataUsage" component={DataUsageScreen} />
+      <MoreStack.Screen name="SuperAdminPayments" component={SuperAdminPaymentsScreen} />
+      <MoreStack.Screen name="PhoneRequests" component={PhoneRequestsScreen} />
       <MoreStack.Screen name="Settings" component={SettingsScreen} />
       <MoreStack.Screen name="MyPlan" component={MyPlanScreen} />
     </MoreStack.Navigator>

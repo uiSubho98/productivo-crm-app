@@ -99,6 +99,11 @@ const useAuthStore = create((set, get) => ({
     // Keep token in SecureStore so MPIN/biometric login still works after logout.
     // Only clear in-memory state so the app shows the login screen.
     set({ user: null, token: null, error: null });
+    // Tear down real-time socket so a different user doesn't inherit the stream.
+    try {
+      const { disconnectSocket } = require('../services/socket');
+      disconnectSocket();
+    } catch {}
     _resetCallbacks.forEach((fn) => fn());
   },
 

@@ -143,9 +143,20 @@ export default function ProjectDetailScreen({ route, navigation }) {
           );
         })()}
 
-        {project.members?.length > 0 && (
-          <Card isDark={isDark} style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 12 }}>Team ({project.members.length})</Text>
+        <Card isDark={isDark} style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>
+              Team ({project.members?.length || 0})
+            </Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('ProjectMembers', { projectId: project._id })}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+            >
+              <Ionicons name="people-outline" size={14} color={C.primary} />
+              <Text style={{ fontSize: 12, fontWeight: '700', color: C.primary }}>Manage</Text>
+            </TouchableOpacity>
+          </View>
+          {project.members?.length > 0 ? (
             <View style={{ gap: 10 }}>
               {project.members.map((m, idx) => (
                 <View key={m._id || idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -162,8 +173,12 @@ export default function ProjectDetailScreen({ route, navigation }) {
                 </View>
               ))}
             </View>
-          </Card>
-        )}
+          ) : (
+            <Text style={{ fontSize: 13, color: C.textSecondary, paddingVertical: 6 }}>
+              No members yet. Tap Manage to add teammates.
+            </Text>
+          )}
+        </Card>
 
         <Button onPress={handleDelete} variant="danger" isDark={isDark} icon="trash-outline" style={{ marginTop: 8 }}>
           Delete Project

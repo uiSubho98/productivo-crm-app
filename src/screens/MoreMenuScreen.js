@@ -9,20 +9,25 @@ import { getColors } from '../utils/colors';
 import { Avatar } from '../components/ui';
 
 const MENU_ITEMS = [
-  { section: 'Manage', items: [
-    { label: 'Projects', icon: 'folder-outline', screen: 'Projects', color: '#7C3AED' },
-    { label: 'Meetings', icon: 'calendar-outline', screen: 'Meetings', color: '#059669' },
-    { label: 'WhatsApp', icon: 'logo-whatsapp', screen: 'Conversations', color: '#25D366' },
+  { section: 'Workspace', items: [
+    { label: 'Projects',    icon: 'folder-outline',   screen: 'Projects',     color: '#7C3AED' },
+    { label: 'Meetings',    icon: 'calendar-outline', screen: 'Meetings',     color: '#059669' },
+    { label: 'WhatsApp',    icon: 'logo-whatsapp',    screen: 'Conversations', color: '#25D366' },
+    { label: 'Attendance',  icon: 'time-outline',     screen: 'Attendance',   color: '#0EA5E9' },
   ]},
   { section: 'Admin', items: [
     { label: 'Organizations', icon: 'business-outline', screen: 'Organizations', color: '#2563EB' },
-    { label: 'Users', icon: 'people-outline', screen: 'Users', color: '#D97706' },
-    { label: 'My Plan', icon: 'ribbon-outline', screen: 'MyPlan', color: '#7C3AED', superadminOnly: true },
-    { label: 'Premium Add-ons', icon: 'flash-outline', screen: 'PremiumFeatures', color: '#F59E0B' },
+    { label: 'Org Tree',      icon: 'git-branch-outline', screen: 'OrgTree',     color: '#1D4ED8', adminOnly: true },
+    { label: 'Users',         icon: 'people-outline',   screen: 'Users',         color: '#D97706' },
+    { label: 'Timesheet',     icon: 'clipboard-outline', screen: 'Timesheet',    color: '#0369A1', adminOnly: true },
+    { label: 'Phone Requests', icon: 'call-outline',     screen: 'PhoneRequests', color: '#B45309', superadminOnly: true },
+    { label: 'Data & Activity', icon: 'pulse-outline',  screen: 'DataUsage',     color: '#0891B2', superadminOrOwner: true },
+    { label: 'My Plan',       icon: 'ribbon-outline',   screen: 'MyPlan',        color: '#7C3AED', superadminOnly: true },
+    { label: 'Add-ons',       icon: 'flash-outline',    screen: 'PremiumFeatures', color: '#F59E0B', addonsItem: true },
   ]},
-  // product_owner only
   { section: 'Platform', items: [
-    { label: 'Leads', icon: 'mail-outline', screen: 'Enquiries', color: '#6366F1', ownerOnly: true },
+    { label: 'Leads',     icon: 'mail-outline',        screen: 'Enquiries',            color: '#6366F1', ownerOnly: true },
+    { label: 'Payments',  icon: 'card-outline',        screen: 'SuperAdminPayments',   color: '#059669', ownerOnly: true },
   ]},
   { section: 'Account', items: [
     { label: 'Settings', icon: 'settings-outline', screen: 'Settings', color: '#6B7280' },
@@ -49,7 +54,13 @@ export default function MoreMenuScreen({ navigation }) {
   const isVisible = (item) => {
     if (item.ownerOnly) return userRole === 'product_owner';
     if (item.superadminOnly) return userRole === 'superadmin';
-    if (['Organizations', 'Users', 'Premium Add-ons'].includes(item.label)) {
+    if (item.superadminOrOwner) return userRole === 'superadmin' || userRole === 'product_owner';
+    if (item.adminOnly) return ['superadmin', 'org_admin', 'product_owner'].includes(userRole);
+    if (item.addonsItem) {
+      if (waActive) return false; // hide once any WhatsApp add-on is purchased
+      return ['superadmin', 'org_admin'].includes(userRole);
+    }
+    if (['Organizations', 'Users'].includes(item.label)) {
       return ['product_owner', 'superadmin', 'org_admin'].includes(userRole);
     }
     return true;

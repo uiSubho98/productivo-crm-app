@@ -54,17 +54,20 @@ export default function UsersScreen({ navigation }) {
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchUsers(); }} tintColor={C.primary} />}
             renderItem={({ item }) => (
-              <View style={{
-                backgroundColor: C.card,
-                borderRadius: 14,
-                padding: 14,
-                marginBottom: 8,
-                borderWidth: 1,
-                borderColor: C.border,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 12,
-              }}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('UserDetail', { userId: item._id })}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: C.card,
+                  borderRadius: 14,
+                  padding: 14,
+                  marginBottom: 8,
+                  borderWidth: 1,
+                  borderColor: C.border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                }}>
                 <Avatar name={item.name} size="md" />
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: '600', color: C.text }}>{item.name}</Text>
@@ -78,7 +81,7 @@ export default function UsersScreen({ navigation }) {
                     </View>
                   )}
                 </View>
-              </View>
+              </TouchableOpacity>
             )}
           />
         )}

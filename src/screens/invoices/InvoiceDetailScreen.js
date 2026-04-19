@@ -9,8 +9,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { invoiceAPI } from '../../services/api';
+import * as WebBrowser from 'expo-web-browser';
+import { invoiceAPI, whatsappAddonAPI } from '../../services/api';
 import useThemeStore from '../../store/themeStore';
+import useWhatsappAddonStore from '../../store/whatsappAddonStore';
 import { getColors } from '../../utils/colors';
 import { Card, Badge, Spinner, ScreenHeader, Button, AppModal, Input, DatePicker } from '../../components/ui';
 import { formatINR, formatDate } from '../../utils/format';
@@ -35,6 +37,12 @@ export default function InvoiceDetailScreen({ route, navigation }) {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ amount: '', date: new Date().toISOString().split('T')[0], method: 'bank_transfer', reference: '', notes: '' });
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [sending, setSending] = useState(false);
+  const { features: waFeatures, isFetched: waFetched, fetch: fetchWaAddon } = useWhatsappAddonStore();
+  const waInvoiceActive = waFeatures?.invoice?.isActive;
+
+  useEffect(() => { if (!waFetched) fetchWaAddon(); }, [waFetched]);
 
   const fetchInvoice = async () => {
     if (!invoiceId) { setLoading(false); return; }
@@ -81,13 +89,55 @@ export default function InvoiceDetailScreen({ route, navigation }) {
   const handleGeneratePdf = async () => {
     setPdfLoading(true);
     try {
-      await invoiceAPI.generatePdf(invoiceId);
-      Alert.alert('Success', 'PDF generated successfully');
-      fetchInvoice();
+      const res = await invoiceAPI.generatePdf(invoiceId);
+      const pdfUrl = res.data?.data?.pdfUrl || res.data?.pdfUrl || invoice?.pdfUrl;
+      await fetchInvoice();
+      if (pdfUrl) {
+        await WebBrowser.openBrowserAsync(pdfUrl);
+      } else {
+        Alert.alert('PDF ready', 'PDF generated. Open again to view.');
+      }
     } catch {
       Alert.alert('Error', 'Failed to generate PDF');
     }
     setPdfLoading(false);
+  };
+
+  const handleSendEmail = async () => {
+    setSending(true);
+    try {
+      await invoiceAPI.send(invoiceId);
+      setShowSendModal(false);
+      Alert.alert('Sent', 'Invoice emailed to client.');
+      fetchInvoice();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to send invoice');
+    }
+    setSending(false);
+  };
+
+  const handleSendWhatsapp = async () => {
+    if (!waInvoiceActive) {
+      Alert.alert(
+        'Add-on required',
+        'Send via WhatsApp requires the Invoice add-on.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'See Add-ons', onPress: () => navigation.navigate('PremiumFeatures') },
+        ]
+      );
+      return;
+    }
+    setSending(true);
+    try {
+      await whatsappAddonAPI.sendInvoice(invoiceId);
+      setShowSendModal(false);
+      Alert.alert('Sent', 'Invoice sent to client via WhatsApp.');
+      fetchInvoice();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to send via WhatsApp');
+    }
+    setSending(false);
   };
 
   if (loading) {
@@ -255,6 +305,16 @@ export default function InvoiceDetailScreen({ route, navigation }) {
               Record Payment
             </Button>
           )}
+          {invoice.status !== 'cancelled' && (
+            <Button
+              onPress={() => setShowSendModal(true)}
+              variant="outline"
+              isDark={isDark}
+              icon="send-outline"
+            >
+              Send to Client
+            </Button>
+          )}
           <Button
             onPress={handleGeneratePdf}
             loading={pdfLoading}
@@ -262,10 +322,61 @@ export default function InvoiceDetailScreen({ route, navigation }) {
             isDark={isDark}
             icon="document-outline"
           >
-            Generate PDF
+            Generate / View PDF
           </Button>
         </View>
       </ScrollView>
+
+      <AppModal isOpen={showSendModal} onClose={() => setShowSendModal(false)} title="Send Invoice" isDark={isDark} size="sm">
+        <Text style={{ fontSize: 13, color: C.textSecondary, marginBottom: 16 }}>
+          Choose how you want to send this invoice to {invoice.clientId?.name || 'the client'}.
+        </Text>
+        <TouchableOpacity
+          onPress={handleSendEmail}
+          disabled={sending}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 12,
+            padding: 14, borderRadius: 14, borderWidth: 1, borderColor: C.border,
+            marginBottom: 10, opacity: sending ? 0.6 : 1,
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: C.primaryLight, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="mail-outline" size={20} color={C.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>Email</Text>
+            <Text style={{ fontSize: 12, color: C.textSecondary }}>{invoice.clientId?.email || 'No email on file'}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleSendWhatsapp}
+          disabled={sending}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 12,
+            padding: 14, borderRadius: 14, borderWidth: 1,
+            borderColor: waInvoiceActive ? '#25D36640' : C.border,
+            backgroundColor: waInvoiceActive ? '#25D36610' : 'transparent',
+            opacity: sending ? 0.6 : 1,
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#25D36620', alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>
+              WhatsApp{!waInvoiceActive && '  '}
+              {!waInvoiceActive && <Text style={{ fontSize: 10, color: C.textTertiary, fontWeight: '600' }}>· add-on</Text>}
+            </Text>
+            <Text style={{ fontSize: 12, color: C.textSecondary }}>
+              {invoice.clientId?.phoneNumber || 'No phone on file'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={C.textTertiary} />
+        </TouchableOpacity>
+      </AppModal>
 
       <AppModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} title="Record Payment" isDark={isDark} size="sm">
         <Input

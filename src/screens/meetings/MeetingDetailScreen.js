@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { meetingAPI } from '../../services/api';
+import { meetingAPI, whatsappAddonAPI } from '../../services/api';
 import useThemeStore from '../../store/themeStore';
+import useWhatsappAddonStore from '../../store/whatsappAddonStore';
 import { getColors } from '../../utils/colors';
 import { Card, Badge, Spinner, Avatar, ScreenHeader, Button, AppModal } from '../../components/ui';
 import { formatDateTime, formatDate } from '../../utils/format';
@@ -28,6 +29,33 @@ export default function MeetingDetailScreen({ route, navigation }) {
   const [showDoneModal, setShowDoneModal] = useState(false);
   const [doneNotes, setDoneNotes] = useState('');
   const [doneLoading, setDoneLoading] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const { features: waFeatures, isFetched: waFetched, fetch: fetchWaAddon } = useWhatsappAddonStore();
+  const waMeetActive = waFeatures?.meeting_invite?.isActive;
+
+  useEffect(() => { if (!waFetched) fetchWaAddon(); }, [waFetched]);
+
+  const handleSendInvite = async () => {
+    if (!waMeetActive) {
+      Alert.alert(
+        'Add-on required',
+        'WhatsApp meeting invites require the Meeting Invite add-on.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'See Add-ons', onPress: () => navigation.navigate('PremiumFeatures') },
+        ]
+      );
+      return;
+    }
+    setInviting(true);
+    try {
+      await whatsappAddonAPI.sendMeetingInvite(meetingId);
+      Alert.alert('Sent', 'Meeting invite sent to all attendees on WhatsApp.');
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to send invite');
+    }
+    setInviting(false);
+  };
 
   const fetchMeeting = async () => {
     try {
@@ -238,6 +266,15 @@ export default function MeetingDetailScreen({ route, navigation }) {
               icon="checkmark-circle-outline"
             >
               Mark as Done
+            </Button>
+            <Button
+              onPress={handleSendInvite}
+              loading={inviting}
+              variant="outline"
+              isDark={isDark}
+              icon="logo-whatsapp"
+            >
+              Send WhatsApp Invite{!waMeetActive ? ' · add-on' : ''}
             </Button>
             <Button
               onPress={handleCancel}

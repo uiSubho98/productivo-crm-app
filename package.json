@@ -28,8 +28,10 @@
     "expo-local-authentication": "~14.0.1",
     "expo-notifications": "~0.28.19",
     "expo-secure-store": "~13.0.2",
+    "expo-sharing": "~12.0.1",
     "expo-status-bar": "~1.12.1",
     "expo-task-manager": "~11.8.2",
+    "expo-web-browser": "~13.0.3",
     "react": "18.2.0",
     "react-native": "0.74.5",
     "react-native-gesture-handler": "~2.17.1",
@@ -38,6 +40,7 @@
     "react-native-screens": "3.31.1",
     "react-native-svg": "15.2.0",
     "react-native-vector-icons": "^10.2.0",
+    "socket.io-client": "^4.8.3",
     "zustand": "^5.0.0"
   },
   "devDependencies": {

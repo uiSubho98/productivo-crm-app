@@ -9,10 +9,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { taskAPI } from '../../services/api';
+import { taskAPI, whatsappAddonAPI } from '../../services/api';
 import useThemeStore from '../../store/themeStore';
+import useWhatsappAddonStore from '../../store/whatsappAddonStore';
 import { getColors } from '../../utils/colors';
-import { Card, Badge, Spinner, Avatar, ScreenHeader, Button } from '../../components/ui';
+import { Card, Badge, Spinner, Avatar, ScreenHeader, Button, AppModal } from '../../components/ui';
 import { formatDate, formatDateTime, capitalize } from '../../utils/format';
 
 function DetailRow({ icon, label, value, isDark }) {
@@ -42,6 +43,15 @@ export default function TaskDetailScreen({ route, navigation }) {
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [timer, setTimer] = useState(null);
+  const [timerBusy, setTimerBusy] = useState(false);
+  const [timeLogs, setTimeLogs] = useState([]);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [remindingId, setRemindingId] = useState(null);
+  const { features: waFeatures, isFetched: waFetched, fetch: fetchWaAddon } = useWhatsappAddonStore();
+  const waTaskActive = waFeatures?.task_reminder?.isActive;
+
+  useEffect(() => { if (!waFetched) fetchWaAddon(); }, [waFetched]);
 
   const fetchTask = async () => {
     try {
@@ -52,7 +62,60 @@ export default function TaskDetailScreen({ route, navigation }) {
     setRefreshing(false);
   };
 
-  useEffect(() => { fetchTask(); }, [taskId]);
+  const fetchTimer = async () => {
+    try {
+      const [tRes, lRes] = await Promise.all([
+        taskAPI.getTimer(taskId).catch(() => ({ data: { data: null } })),
+        taskAPI.getTimeLogs(taskId).catch(() => ({ data: { data: [] } })),
+      ]);
+      setTimer(tRes.data?.data || null);
+      setTimeLogs(lRes.data?.data || []);
+    } catch {}
+  };
+
+  useEffect(() => { fetchTask(); fetchTimer(); }, [taskId]);
+
+  const handleTimerToggle = async () => {
+    setTimerBusy(true);
+    try {
+      if (timer?.running) {
+        await taskAPI.stopTimer(taskId);
+      } else {
+        await taskAPI.startTimer(taskId);
+      }
+      await fetchTimer();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Timer action failed');
+    }
+    setTimerBusy(false);
+  };
+
+  const handleSendReminder = async (assignee) => {
+    if (!waTaskActive) {
+      Alert.alert(
+        'Add-on required',
+        'Task reminders via WhatsApp require the Task Reminder add-on.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'See Add-ons', onPress: () => navigation.navigate('PremiumFeatures') },
+        ]
+      );
+      return;
+    }
+    if (!assignee?.phoneNumber) {
+      Alert.alert('Missing phone', `${assignee?.name || 'This user'} has no phone number on file.`);
+      return;
+    }
+    setRemindingId(assignee._id);
+    try {
+      await whatsappAddonAPI.sendTaskReminder(taskId, { assigneeId: assignee._id });
+      setShowReminderModal(false);
+      Alert.alert('Sent', `Reminder sent to ${assignee.name} via WhatsApp.`);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to send reminder');
+    }
+    setRemindingId(null);
+  };
 
   const handleDelete = () => {
     Alert.alert('Delete Task', 'Are you sure you want to delete this task?', [
@@ -159,6 +222,44 @@ export default function TaskDetailScreen({ route, navigation }) {
           </ScrollView>
         </Card>
 
+        {/* Timer */}
+        <Card isDark={isDark} style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: C.textSecondary }}>Time Tracking</Text>
+            {timer?.running && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#EF4444' }}>Running</Text>
+              </View>
+            )}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: C.text }}>
+                {(() => {
+                  const mins = timer?.totalMinutes ?? timer?.totalSeconds ? Math.round((timer?.totalSeconds || 0) / 60) : (timer?.totalMinutes || 0);
+                  const hours = Math.floor(mins / 60);
+                  const rem = mins % 60;
+                  return hours > 0 ? `${hours}h ${rem}m` : `${rem}m`;
+                })()}
+              </Text>
+              <Text style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>
+                {timeLogs.length} session{timeLogs.length === 1 ? '' : 's'} logged
+              </Text>
+            </View>
+            <Button
+              onPress={handleTimerToggle}
+              loading={timerBusy}
+              variant={timer?.running ? 'danger' : 'primary'}
+              icon={timer?.running ? 'stop' : 'play'}
+              size="sm"
+              isDark={isDark}
+            >
+              {timer?.running ? 'Stop' : 'Start'}
+            </Button>
+          </View>
+        </Card>
+
         {/* Details */}
         <Card isDark={isDark} style={{ marginBottom: 16 }}>
           <Text style={{ fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 16 }}>Details</Text>
@@ -191,12 +292,21 @@ export default function TaskDetailScreen({ route, navigation }) {
         {/* Assignees */}
         {task.assignees?.length > 0 && (
           <Card isDark={isDark} style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 12 }}>Assignees</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>Assignees</Text>
+              <TouchableOpacity
+                onPress={() => setShowReminderModal(true)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+              >
+                <Ionicons name="logo-whatsapp" size={15} color="#25D366" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#25D366' }}>Remind</Text>
+              </TouchableOpacity>
+            </View>
             <View style={{ gap: 10 }}>
               {task.assignees.map((a, i) => (
                 <View key={a._id || i} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <Avatar name={a.name || a.email || '?'} size="sm" />
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 14, fontWeight: '500', color: C.text }}>{a.name || 'Unknown'}</Text>
                     {a.email ? <Text style={{ fontSize: 12, color: C.textSecondary }}>{a.email}</Text> : null}
                   </View>
@@ -262,6 +372,59 @@ export default function TaskDetailScreen({ route, navigation }) {
           Delete Task
         </Button>
       </ScrollView>
+
+      <AppModal isOpen={showReminderModal} onClose={() => setShowReminderModal(false)} title="Send Reminder" isDark={isDark} size="sm">
+        {!waTaskActive && (
+          <View style={{
+            padding: 12, borderRadius: 12, backgroundColor: C.warningLight,
+            flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12,
+          }}>
+            <Ionicons name="lock-closed" size={18} color={C.warning} />
+            <Text style={{ fontSize: 12, color: C.text, flex: 1 }}>
+              Task Reminder add-on required. Tap an assignee to see upgrade flow.
+            </Text>
+          </View>
+        )}
+        <Text style={{ fontSize: 13, color: C.textSecondary, marginBottom: 12 }}>
+          Pick an assignee to notify via WhatsApp.
+        </Text>
+        <View style={{ gap: 8 }}>
+          {(task.assignees || []).map((a) => {
+            const hasPhone = !!a.phoneNumber;
+            return (
+              <TouchableOpacity
+                key={a._id}
+                onPress={() => handleSendReminder(a)}
+                disabled={remindingId === a._id}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  padding: 12, borderRadius: 12, borderWidth: 1, borderColor: C.border,
+                  opacity: remindingId === a._id ? 0.6 : 1,
+                }}
+                activeOpacity={0.8}
+              >
+                <Avatar name={a.name || a.email || '?'} size="sm" />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>{a.name || 'Unknown'}</Text>
+                  <Text style={{ fontSize: 12, color: hasPhone ? C.textSecondary : C.textTertiary }}>
+                    {hasPhone ? a.phoneNumber : 'No phone on file'}
+                  </Text>
+                </View>
+                {remindingId === a._id ? (
+                  <Spinner size="sm" />
+                ) : (
+                  <Ionicons name="logo-whatsapp" size={20} color={hasPhone ? '#25D366' : C.textTertiary} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+          {(task.assignees || []).length === 0 && (
+            <Text style={{ fontSize: 13, color: C.textTertiary, textAlign: 'center', paddingVertical: 12 }}>
+              No assignees to remind.
+            </Text>
+          )}
+        </View>
+      </AppModal>
     </SafeAreaView>
   );
 }
