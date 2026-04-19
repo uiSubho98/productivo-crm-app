@@ -45,24 +45,31 @@ export default function CreateTaskScreen({ route, navigation }) {
   const { user } = useAuthStore();
   const C = getColors(isDark);
 
+  const toYmd = (v) => {
+    if (!v) return '';
+    const s = typeof v === 'string' ? v : new Date(v).toISOString();
+    return s.split('T')[0] || '';
+  };
+  const idOf = (x) => (x && typeof x === 'object' ? x._id : x) || null;
+
   const [title, setTitle] = useState(editTask?.title || '');
   const [description, setDescription] = useState(editTask?.description || '');
   const [status, setStatus] = useState(editTask?.status || 'todo');
   const [priority, setPriority] = useState(editTask?.priority || 'medium');
-  const [dueDate, setDueDate] = useState(editTask?.dueDate?.split('T')[0] || '');
+  const [dueDate, setDueDate] = useState(toYmd(editTask?.dueDate));
   const [recurrence, setRecurrence] = useState(editTask?.recurrence || 'none');
   const [recurrenceDays, setRecurrenceDays] = useState(editTask?.recurrenceDays || []);
-  const [recurrenceEndDate, setRecurrenceEndDate] = useState(editTask?.recurrenceEndDate?.split('T')[0] || '');
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState(toYmd(editTask?.recurrenceEndDate));
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState([]);
-  const [selectedProject, setSelectedProject] = useState(editTask?.projectId?._id || editTask?.projectId || null);
+  const [selectedProject, setSelectedProject] = useState(idOf(editTask?.projectId));
   const [categories, setCategories] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState(
-    editTask?.categories?.map(c => c._id || c) || []
+    (editTask?.categories || []).map(idOf).filter(Boolean)
   );
   const [members, setMembers] = useState([]);
   const [selectedAssignees, setSelectedAssignees] = useState(
-    editTask?.assignees?.map(a => a._id || a) || []
+    (editTask?.assignees || []).map(idOf).filter(Boolean)
   );
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const [showAssigneeModal, setShowAssigneeModal] = useState(false);
@@ -71,6 +78,17 @@ export default function CreateTaskScreen({ route, navigation }) {
   const [showCreateCategory, setShowCreateCategory] = useState(false);
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+
+  // Merge task's own categories into the fetched list so "missing" ones still render
+  // (e.g., a category fetched as populated object on the task but not in the org list).
+  const mergedCategories = (() => {
+    const map = new Map();
+    categories.forEach(c => { if (c?._id) map.set(c._id, c); });
+    (editTask?.categories || []).forEach(c => {
+      if (c && typeof c === 'object' && c._id && !map.has(c._id)) map.set(c._id, c);
+    });
+    return Array.from(map.values());
+  })();
 
   useEffect(() => {
     setDataLoading(true);
@@ -350,9 +368,9 @@ export default function CreateTaskScreen({ route, navigation }) {
               {/* Categories */}
               <View style={{ marginBottom: 16 }}>
                 <Text style={{ fontSize: 13, fontWeight: '500', color: C.textSecondary, marginBottom: 8 }}>Categories</Text>
-                {categories.length > 0 && (
+                {mergedCategories.length > 0 && (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                    {categories.map((cat) => {
+                    {mergedCategories.map((cat) => {
                       const selected = selectedCategories.includes(cat._id);
                       return (
                         <TouchableOpacity

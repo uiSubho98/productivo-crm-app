@@ -8,6 +8,7 @@ import {
   RefreshControl,
   TextInput,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,8 +16,13 @@ import { taskAPI, whatsappAddonAPI } from '../../services/api';
 import useThemeStore from '../../store/themeStore';
 import useWhatsappAddonStore from '../../store/whatsappAddonStore';
 import { getColors } from '../../utils/colors';
-import { Card, Badge, Spinner, Avatar, ScreenHeader, Button, AppModal } from '../../components/ui';
+import { Card, Badge, Spinner, Avatar, ScreenHeader, Button, AppModal, DatePicker } from '../../components/ui';
 import { formatDate, formatDateTime, capitalize } from '../../utils/format';
+
+const todayYmd = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 function DetailRow({ icon, label, value, isDark }) {
   const C = getColors(isDark);
@@ -51,7 +57,16 @@ export default function TaskDetailScreen({ route, navigation }) {
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [remindingId, setRemindingId] = useState(null);
   const [newSubtask, setNewSubtask] = useState('');
+  const [newSubtaskUrl, setNewSubtaskUrl] = useState('');
   const [subtaskBusy, setSubtaskBusy] = useState(false);
+  const [editingSubtaskId, setEditingSubtaskId] = useState(null);
+  const [editSubtaskUrl, setEditSubtaskUrl] = useState('');
+  const [notes, setNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [newNote, setNewNote] = useState('');
+  const [noteDate, setNoteDate] = useState(todayYmd());
+  const [noteBusy, setNoteBusy] = useState(false);
+  const [notesFilterDate, setNotesFilterDate] = useState('');
   const { features: waFeatures, isFetched: waFetched, fetch: fetchWaAddon } = useWhatsappAddonStore();
   const waTaskActive = waFeatures?.task_reminder?.isActive;
 
@@ -81,14 +96,100 @@ export default function TaskDetailScreen({ route, navigation }) {
     if (!title) return;
     setSubtaskBusy(true);
     try {
-      await taskAPI.addSubtask(taskId, { title });
+      await taskAPI.addSubtask(taskId, { title, url: newSubtaskUrl.trim() });
       setNewSubtask('');
+      setNewSubtaskUrl('');
       await fetchTask();
     } catch (err) {
       Alert.alert('Error', err.response?.data?.error || 'Failed to add subtask');
     } finally {
       setSubtaskBusy(false);
     }
+  };
+
+  const deleteSubtask = (subtask) => {
+    Alert.alert('Delete subtask?', subtask.title, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await taskAPI.deleteSubtask(taskId, subtask._id);
+            await fetchTask();
+          } catch (err) {
+            Alert.alert('Error', err.response?.data?.error || 'Failed to delete subtask');
+          }
+        },
+      },
+    ]);
+  };
+
+  const saveSubtaskUrl = async (subtask) => {
+    const url = editSubtaskUrl.trim();
+    try {
+      await taskAPI.updateSubtask(taskId, subtask._id, { url });
+      setEditingSubtaskId(null);
+      setEditSubtaskUrl('');
+      await fetchTask();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to update URL');
+    }
+  };
+
+  const openSubtaskUrl = async (url) => {
+    if (!url) return;
+    const normalized = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+    try {
+      const can = await Linking.canOpenURL(normalized);
+      if (can) Linking.openURL(normalized);
+      else Alert.alert('Invalid URL', url);
+    } catch {
+      Alert.alert('Could not open', url);
+    }
+  };
+
+  const fetchNotes = async (date) => {
+    setNotesLoading(true);
+    try {
+      const res = await taskAPI.listNotes(taskId, date ? { date } : undefined);
+      setNotes(res.data?.data || []);
+    } catch {
+      setNotes([]);
+    }
+    setNotesLoading(false);
+  };
+
+  const addNote = async () => {
+    const content = newNote.trim();
+    if (!content) return;
+    setNoteBusy(true);
+    try {
+      await taskAPI.addNote(taskId, { content, date: noteDate });
+      setNewNote('');
+      await fetchNotes(notesFilterDate);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to add note');
+    }
+    setNoteBusy(false);
+  };
+
+  const handleDeleteNote = (note) => {
+    Alert.alert('Delete note?', '', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await taskAPI.deleteNote(taskId, note._id);
+            await fetchNotes(notesFilterDate);
+          } catch (err) {
+            Alert.alert('Error', err.response?.data?.error || 'Failed to delete note');
+          }
+        },
+      },
+    ]);
   };
 
   const fetchTimer = async () => {
@@ -102,7 +203,8 @@ export default function TaskDetailScreen({ route, navigation }) {
     } catch {}
   };
 
-  useEffect(() => { fetchTask(); fetchTimer(); }, [taskId]);
+  useEffect(() => { fetchTask(); fetchTimer(); fetchNotes(); }, [taskId]);
+  useEffect(() => { fetchNotes(notesFilterDate); }, [notesFilterDate]);
 
   const handleTimerToggle = async () => {
     setTimerBusy(true);
@@ -350,64 +452,238 @@ export default function TaskDetailScreen({ route, navigation }) {
           <Text style={{ fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 12 }}>
             Subtasks ({(task.subtasks || []).filter(s => s.status === 'done').length}/{(task.subtasks || []).length})
           </Text>
-          <View style={{ gap: 10 }}>
-            {(task.subtasks || []).map((sub) => (
-              <TouchableOpacity
-                key={sub._id}
-                onPress={() => toggleSubtask(sub)}
-                activeOpacity={0.6}
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 }}
-              >
-                <Ionicons
-                  name={sub.status === 'done' ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={22}
-                  color={sub.status === 'done' ? '#10B981' : C.textTertiary}
-                />
-                <Text style={{
-                  fontSize: 14, flex: 1,
-                  color: sub.status === 'done' ? C.textTertiary : C.text,
-                  textDecorationLine: sub.status === 'done' ? 'line-through' : 'none',
-                }}>
-                  {sub.title}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          <View style={{ gap: 12 }}>
+            {(task.subtasks || []).map((sub) => {
+              const isEditingUrl = editingSubtaskId === sub._id;
+              const isDone = sub.status === 'done';
+              return (
+                <View key={sub._id} style={{ gap: 6 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                    <TouchableOpacity onPress={() => toggleSubtask(sub)} activeOpacity={0.6} style={{ paddingTop: 2 }}>
+                      <Ionicons
+                        name={isDone ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={22}
+                        color={isDone ? '#10B981' : C.textTertiary}
+                      />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <TouchableOpacity onPress={() => toggleSubtask(sub)} activeOpacity={0.6}>
+                        <Text style={{
+                          fontSize: 14,
+                          color: isDone ? C.textTertiary : C.text,
+                          textDecorationLine: isDone ? 'line-through' : 'none',
+                        }}>
+                          {sub.title}
+                        </Text>
+                      </TouchableOpacity>
+                      {sub.url && !isEditingUrl && (
+                        <TouchableOpacity
+                          onPress={() => openSubtaskUrl(sub.url)}
+                          style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}
+                        >
+                          <Ionicons name="link" size={12} color={C.primary} />
+                          <Text numberOfLines={1} style={{ fontSize: 12, color: C.primary, flex: 1 }}>
+                            {sub.url}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      {isEditingUrl && (
+                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                          <TextInput
+                            value={editSubtaskUrl}
+                            onChangeText={setEditSubtaskUrl}
+                            placeholder="https://…"
+                            placeholderTextColor={C.textTertiary}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            style={{
+                              flex: 1, backgroundColor: C.surface, borderRadius: 8,
+                              paddingHorizontal: 10, paddingVertical: 6, fontSize: 12, color: C.text,
+                            }}
+                          />
+                          <TouchableOpacity onPress={() => saveSubtaskUrl(sub)} style={{
+                            paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: C.primary,
+                          }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#FFF' }}>Save</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity onPress={() => { setEditingSubtaskId(null); setEditSubtaskUrl(''); }}>
+                            <Ionicons name="close" size={18} color={C.textSecondary} />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                    {!isEditingUrl && (
+                      <TouchableOpacity
+                        onPress={() => { setEditingSubtaskId(sub._id); setEditSubtaskUrl(sub.url || ''); }}
+                        style={{ padding: 4 }}
+                      >
+                        <Ionicons name={sub.url ? 'pencil' : 'link'} size={16} color={C.textTertiary} />
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity onPress={() => deleteSubtask(sub)} style={{ padding: 4 }}>
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
           </View>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 }}>
+          <View style={{ marginTop: 12, gap: 8 }}>
             <TextInput
               value={newSubtask}
               onChangeText={setNewSubtask}
               placeholder="Add a subtask…"
               placeholderTextColor={C.textTertiary}
-              onSubmitEditing={addSubtask}
-              returnKeyType="done"
+              returnKeyType="next"
               style={{
-                flex: 1,
-                backgroundColor: C.surface,
-                borderRadius: 10,
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                fontSize: 14,
-                color: C.text,
+                backgroundColor: C.surface, borderRadius: 10,
+                paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: C.text,
               }}
             />
-            <TouchableOpacity
-              onPress={addSubtask}
-              disabled={subtaskBusy || !newSubtask.trim()}
-              style={{
-                paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
-                backgroundColor: newSubtask.trim() ? '#7C3AED' : C.surface,
-                alignItems: 'center', justifyContent: 'center',
-                minWidth: 64,
-              }}
-            >
-              {subtaskBusy
-                ? <ActivityIndicator size="small" color="#FFF" />
-                : <Text style={{ color: newSubtask.trim() ? '#FFF' : C.textTertiary, fontWeight: '700', fontSize: 13 }}>Add</Text>
-              }
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TextInput
+                value={newSubtaskUrl}
+                onChangeText={setNewSubtaskUrl}
+                placeholder="Optional URL (e.g. PR link)"
+                placeholderTextColor={C.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={addSubtask}
+                returnKeyType="done"
+                style={{
+                  flex: 1, backgroundColor: C.surface, borderRadius: 10,
+                  paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: C.text,
+                }}
+              />
+              <TouchableOpacity
+                onPress={addSubtask}
+                disabled={subtaskBusy || !newSubtask.trim()}
+                style={{
+                  paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+                  backgroundColor: newSubtask.trim() ? '#7C3AED' : C.surface,
+                  alignItems: 'center', justifyContent: 'center',
+                  minWidth: 64,
+                }}
+              >
+                {subtaskBusy
+                  ? <ActivityIndicator size="small" color="#FFF" />
+                  : <Text style={{ color: newSubtask.trim() ? '#FFF' : C.textTertiary, fontWeight: '700', fontSize: 13 }}>Add</Text>
+                }
+              </TouchableOpacity>
+            </View>
           </View>
+        </Card>
+
+        {/* Notes */}
+        <Card isDark={isDark} style={{ marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text }}>Notes</Text>
+            {task.recurrence && task.recurrence !== 'none' && (
+              <View style={{
+                paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+                backgroundColor: '#EEF2FF',
+              }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#4F46E5' }}>PER-DATE</Text>
+              </View>
+            )}
+          </View>
+
+          <Text style={{ fontSize: 11, color: C.textTertiary, marginBottom: 4 }}>Add note for date</Text>
+          <DatePicker
+            value={noteDate}
+            onChange={setNoteDate}
+            isDark={isDark}
+            style={{ marginBottom: 8 }}
+          />
+          <TextInput
+            value={newNote}
+            onChangeText={setNewNote}
+            placeholder="Quick note (meeting takeaway, key point…)"
+            placeholderTextColor={C.textTertiary}
+            multiline
+            style={{
+              backgroundColor: C.surface, borderRadius: 10,
+              paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: C.text,
+              minHeight: 70, textAlignVertical: 'top',
+            }}
+          />
+          <TouchableOpacity
+            onPress={addNote}
+            disabled={noteBusy || !newNote.trim()}
+            style={{
+              alignSelf: 'flex-end', marginTop: 8,
+              paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+              backgroundColor: newNote.trim() ? C.primary : C.surface,
+              opacity: noteBusy ? 0.6 : 1,
+            }}
+          >
+            {noteBusy
+              ? <ActivityIndicator size="small" color="#FFF" />
+              : <Text style={{ color: newNote.trim() ? '#FFF' : C.textTertiary, fontWeight: '700', fontSize: 13 }}>Save note</Text>
+            }
+          </TouchableOpacity>
+
+          <View style={{ height: 1, backgroundColor: C.border, marginVertical: 14 }} />
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: C.textSecondary }}>Filter:</Text>
+            <View style={{ flex: 1 }}>
+              <DatePicker
+                value={notesFilterDate}
+                onChange={setNotesFilterDate}
+                isDark={isDark}
+                placeholder="All dates"
+              />
+            </View>
+            {notesFilterDate && (
+              <TouchableOpacity onPress={() => setNotesFilterDate('')} style={{ padding: 4 }}>
+                <Ionicons name="close-circle" size={18} color={C.textSecondary} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {notesLoading ? (
+            <ActivityIndicator size="small" color={C.primary} />
+          ) : notes.length === 0 ? (
+            <Text style={{ fontSize: 13, color: C.textTertiary, fontStyle: 'italic' }}>
+              No notes {notesFilterDate ? `for ${notesFilterDate}` : 'yet'}.
+            </Text>
+          ) : (
+            <View style={{ gap: 10 }}>
+              {(() => {
+                const byDate = {};
+                notes.forEach(n => {
+                  if (!byDate[n.date]) byDate[n.date] = [];
+                  byDate[n.date].push(n);
+                });
+                const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+                return dates.map(date => (
+                  <View key={date}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: C.textSecondary, marginBottom: 6, textTransform: 'uppercase' }}>
+                      {date === todayYmd() ? `Today · ${date}` : date}
+                    </Text>
+                    {byDate[date].map(n => (
+                      <View key={n._id} style={{
+                        backgroundColor: C.surface, borderRadius: 10,
+                        padding: 10, marginBottom: 6,
+                      }}>
+                        <Text style={{ fontSize: 13, color: C.text, lineHeight: 18 }}>{n.content}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                          <Text style={{ fontSize: 10, color: C.textTertiary }}>
+                            {n.createdBy?.name || 'Someone'} · {formatDateTime(n.createdAt)}
+                          </Text>
+                          <TouchableOpacity onPress={() => handleDeleteNote(n)}>
+                            <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                ));
+              })()}
+            </View>
+          )}
         </Card>
 
         {/* Categories */}

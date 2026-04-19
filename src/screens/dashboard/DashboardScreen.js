@@ -5,13 +5,15 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from 'date-fns';
 import useAuthStore from '../../store/authStore';
 import useThemeStore from '../../store/themeStore';
-import { dashboardAPI, taskAPI, meetingAPI } from '../../services/api';
+import { dashboardAPI, taskAPI, meetingAPI, attendanceAPI } from '../../services/api';
 import { getColors } from '../../utils/colors';
 import {
   Card,
@@ -48,13 +50,17 @@ export default function DashboardScreen({ navigation }) {
   const [meetings, setMeetings] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [attendanceToday, setAttendanceToday] = useState(null);
+  const [attendanceBusy, setAttendanceBusy] = useState(false);
+  const [liveMs, setLiveMs] = useState(0);
 
   const fetchData = async () => {
     try {
-      const [statsRes, tasksRes, meetingsRes] = await Promise.allSettled([
+      const [statsRes, tasksRes, meetingsRes, attRes] = await Promise.allSettled([
         dashboardAPI.getStats(),
         taskAPI.getAll({ limit: 5 }),
         meetingAPI.getAll({ limit: 5 }),
+        attendanceAPI.myToday(),
       ]);
       if (statsRes.status === 'fulfilled') setStats(statsRes.value.data?.data || null);
       if (tasksRes.status === 'fulfilled') {
@@ -65,12 +71,33 @@ export default function DashboardScreen({ navigation }) {
         const data = meetingsRes.value.data?.data || meetingsRes.value.data || [];
         setMeetings(Array.isArray(data) ? data : []);
       }
+      if (attRes.status === 'fulfilled') setAttendanceToday(attRes.value.data?.data || null);
     } catch {}
     setLoading(false);
     setRefreshing(false);
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => {
+    if (!attendanceToday?.loginAt || attendanceToday?.logoutAt) { setLiveMs(0); return; }
+    const start = new Date(attendanceToday.loginAt).getTime();
+    setLiveMs(Date.now() - start);
+    const id = setInterval(() => setLiveMs(Date.now() - start), 1000);
+    return () => clearInterval(id);
+  }, [attendanceToday?.loginAt, attendanceToday?.logoutAt]);
+
+  const handleAttendanceToggle = async () => {
+    setAttendanceBusy(true);
+    try {
+      const isClockedIn = attendanceToday?.loginAt && !attendanceToday?.logoutAt;
+      const res = isClockedIn ? await attendanceAPI.clockOut() : await attendanceAPI.clockIn();
+      setAttendanceToday(res.data?.data || null);
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to update attendance');
+    }
+    setAttendanceBusy(false);
+  };
 
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
@@ -143,6 +170,69 @@ export default function DashboardScreen({ navigation }) {
             {getGreeting()}, {user?.name?.split(' ')[0] || 'there'} 👋
           </Text>
         </View>
+
+        {/* Attendance quick timer */}
+        {(() => {
+          const isClockedIn = attendanceToday?.loginAt && !attendanceToday?.logoutAt;
+          const elapsedMs = isClockedIn
+            ? liveMs
+            : attendanceToday?.totalMs || 0;
+          const mins = Math.round(elapsedMs / 60000);
+          const hh = Math.floor(mins / 60);
+          const mm = mins % 60;
+          return (
+            <View style={{ marginBottom: 20 }}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('More', { screen: 'Attendance' })}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 12,
+                  backgroundColor: isClockedIn ? '#ECFDF5' : C.card,
+                  borderWidth: 1, borderColor: isClockedIn ? '#10B98140' : C.border,
+                  borderRadius: 16, padding: 14,
+                }}
+              >
+                <View style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  backgroundColor: isClockedIn ? '#10B98120' : C.primaryLight,
+                  alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Ionicons
+                    name={isClockedIn ? 'timer' : 'time-outline'}
+                    size={22}
+                    color={isClockedIn ? '#059669' : C.primary}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: isClockedIn ? '#059669' : C.textSecondary, textTransform: 'uppercase' }}>
+                    {isClockedIn ? 'Clocked in · live' : attendanceToday?.logoutAt ? 'Today · clocked out' : 'Not clocked in'}
+                  </Text>
+                  <Text style={{ fontSize: 20, fontWeight: '800', color: C.text, marginTop: 1 }}>
+                    {hh}h {mm}m
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={handleAttendanceToggle}
+                  disabled={attendanceBusy}
+                  style={{
+                    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+                    backgroundColor: isClockedIn ? '#DC2626' : '#10B981',
+                    opacity: attendanceBusy ? 0.6 : 1,
+                    minWidth: 96, alignItems: 'center',
+                  }}
+                >
+                  {attendanceBusy ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13 }}>
+                      {isClockedIn ? 'Clock out' : 'Clock in'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
+          );
+        })()}
 
         {loading && !refreshing ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>

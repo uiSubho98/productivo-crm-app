@@ -17,7 +17,6 @@ const MENU_ITEMS = [
   ]},
   { section: 'Admin', items: [
     { label: 'Organizations', icon: 'business-outline', screen: 'Organizations', color: '#2563EB' },
-    { label: 'Org Tree',      icon: 'git-branch-outline', screen: 'OrgTree',     color: '#1D4ED8', adminOnly: true },
     { label: 'Users',         icon: 'people-outline',   screen: 'Users',         color: '#D97706' },
     { label: 'Timesheet',     icon: 'clipboard-outline', screen: 'Timesheet',    color: '#0369A1', adminOnly: true },
     { label: 'Phone Requests', icon: 'call-outline',     screen: 'PhoneRequests', color: '#B45309', superadminOnly: true },

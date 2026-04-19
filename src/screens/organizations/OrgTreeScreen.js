@@ -70,7 +70,7 @@ function OrgNode({ node, depth, expanded, toggle, onPress, C }) {
   );
 }
 
-export default function OrgTreeScreen({ navigation }) {
+export default function OrgTreeScreen({ navigation, embedded = false }) {
   const { isDark } = useThemeStore();
   const C = getColors(isDark);
   const [tree, setTree] = useState(null);
@@ -123,12 +123,12 @@ export default function OrgTreeScreen({ navigation }) {
 
   const collapseAll = () => setExpanded(new Set());
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
-      >
+  const body = (
+    <ScrollView
+      contentContainerStyle={{ padding: embedded ? 20 : 16, paddingBottom: 40, paddingTop: embedded ? 0 : 16 }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={C.primary} />}
+    >
+      {!embedded && (
         <ScreenHeader
           title="Org Tree"
           subtitle="Hierarchy of organizations"
@@ -136,8 +136,8 @@ export default function OrgTreeScreen({ navigation }) {
           onBack={() => navigation.goBack()}
           isDark={isDark}
         />
-
-        {loading ? (
+      )}
+      {loading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}><Spinner /></View>
         ) : !tree?.roots?.length ? (
           <EmptyState icon="business-outline" title="No organizations" subtitle="Nothing to display yet." isDark={isDark} />
@@ -204,7 +204,13 @@ export default function OrgTreeScreen({ navigation }) {
             })}
           </>
         )}
-      </ScrollView>
+    </ScrollView>
+  );
+
+  if (embedded) return body;
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.background }} edges={['top']}>
+      {body}
     </SafeAreaView>
   );
 }

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { organizationAPI } from '../../services/api';
 import useThemeStore from '../../store/themeStore';
 import { getColors } from '../../utils/colors';
 import { Card, EmptyState, Spinner, ScreenHeader, Avatar, SearchInput } from '../../components/ui';
+import OrgTreeScreen from './OrgTreeScreen';
 
 export default function OrganizationsScreen({ navigation }) {
   const { isDark } = useThemeStore();
@@ -14,6 +15,7 @@ export default function OrganizationsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const [view, setView] = useState('list');
 
   const fetchOrgs = async () => {
     try {
@@ -44,15 +46,42 @@ export default function OrganizationsScreen({ navigation }) {
             onAction={() => navigation.navigate('CreateOrganization')}
             isDark={isDark}
           />
-          <SearchInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search organizations..."
-            isDark={isDark}
-            style={{ marginBottom: 12 }}
-          />
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+            {[
+              { key: 'list', label: 'List', icon: 'list-outline' },
+              { key: 'tree', label: 'Hierarchy', icon: 'git-branch-outline' },
+            ].map(tab => {
+              const active = view === tab.key;
+              return (
+                <TouchableOpacity
+                  key={tab.key}
+                  onPress={() => setView(tab.key)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6,
+                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10,
+                    backgroundColor: active ? C.primary : C.surface,
+                    borderWidth: 1, borderColor: active ? C.primary : C.border,
+                  }}
+                >
+                  <Ionicons name={tab.icon} size={14} color={active ? '#FFF' : C.textSecondary} />
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: active ? '#FFF' : C.text }}>{tab.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {view === 'list' && (
+            <SearchInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search organizations..."
+              isDark={isDark}
+              style={{ marginBottom: 12 }}
+            />
+          )}
         </View>
-        {loading ? (
+        {view === 'tree' ? (
+          <OrgTreeScreen navigation={navigation} embedded />
+        ) : loading ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <Spinner color={C.primary} />
           </View>
