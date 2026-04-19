@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Alert,
   RefreshControl,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,6 +50,8 @@ export default function TaskDetailScreen({ route, navigation }) {
   const [timeLogs, setTimeLogs] = useState([]);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [remindingId, setRemindingId] = useState(null);
+  const [newSubtask, setNewSubtask] = useState('');
+  const [subtaskBusy, setSubtaskBusy] = useState(false);
   const { features: waFeatures, isFetched: waFetched, fetch: fetchWaAddon } = useWhatsappAddonStore();
   const waTaskActive = waFeatures?.task_reminder?.isActive;
 
@@ -60,6 +64,31 @@ export default function TaskDetailScreen({ route, navigation }) {
     } catch {}
     setLoading(false);
     setRefreshing(false);
+  };
+
+  const toggleSubtask = async (subtask) => {
+    const nextStatus = subtask.status === 'done' ? 'todo' : 'done';
+    try {
+      await taskAPI.updateSubtask(taskId, subtask._id, { status: nextStatus });
+      await fetchTask();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to update subtask');
+    }
+  };
+
+  const addSubtask = async () => {
+    const title = newSubtask.trim();
+    if (!title) return;
+    setSubtaskBusy(true);
+    try {
+      await taskAPI.addSubtask(taskId, { title });
+      setNewSubtask('');
+      await fetchTask();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to add subtask');
+    } finally {
+      setSubtaskBusy(false);
+    }
   };
 
   const fetchTimer = async () => {
@@ -317,31 +346,69 @@ export default function TaskDetailScreen({ route, navigation }) {
         )}
 
         {/* Subtasks */}
-        {task.subtasks?.length > 0 && (
-          <Card isDark={isDark} style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 12 }}>
-              Subtasks ({task.subtasks.filter(s => s.status === 'done').length}/{task.subtasks.length})
-            </Text>
-            <View style={{ gap: 10 }}>
-              {task.subtasks.map((sub, idx) => (
-                <View key={sub._id || idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Ionicons
-                    name={sub.status === 'done' ? 'checkmark-circle' : 'ellipse-outline'}
-                    size={20}
-                    color={sub.status === 'done' ? '#10B981' : C.textTertiary}
-                  />
-                  <Text style={{
-                    fontSize: 14, flex: 1,
-                    color: sub.status === 'done' ? C.textTertiary : C.text,
-                    textDecorationLine: sub.status === 'done' ? 'line-through' : 'none',
-                  }}>
-                    {sub.title}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </Card>
-        )}
+        <Card isDark={isDark} style={{ marginBottom: 16 }}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: C.text, marginBottom: 12 }}>
+            Subtasks ({(task.subtasks || []).filter(s => s.status === 'done').length}/{(task.subtasks || []).length})
+          </Text>
+          <View style={{ gap: 10 }}>
+            {(task.subtasks || []).map((sub) => (
+              <TouchableOpacity
+                key={sub._id}
+                onPress={() => toggleSubtask(sub)}
+                activeOpacity={0.6}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 }}
+              >
+                <Ionicons
+                  name={sub.status === 'done' ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={22}
+                  color={sub.status === 'done' ? '#10B981' : C.textTertiary}
+                />
+                <Text style={{
+                  fontSize: 14, flex: 1,
+                  color: sub.status === 'done' ? C.textTertiary : C.text,
+                  textDecorationLine: sub.status === 'done' ? 'line-through' : 'none',
+                }}>
+                  {sub.title}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 }}>
+            <TextInput
+              value={newSubtask}
+              onChangeText={setNewSubtask}
+              placeholder="Add a subtask…"
+              placeholderTextColor={C.textTertiary}
+              onSubmitEditing={addSubtask}
+              returnKeyType="done"
+              style={{
+                flex: 1,
+                backgroundColor: C.surface,
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 14,
+                color: C.text,
+              }}
+            />
+            <TouchableOpacity
+              onPress={addSubtask}
+              disabled={subtaskBusy || !newSubtask.trim()}
+              style={{
+                paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10,
+                backgroundColor: newSubtask.trim() ? '#7C3AED' : C.surface,
+                alignItems: 'center', justifyContent: 'center',
+                minWidth: 64,
+              }}
+            >
+              {subtaskBusy
+                ? <ActivityIndicator size="small" color="#FFF" />
+                : <Text style={{ color: newSubtask.trim() ? '#FFF' : C.textTertiary, fontWeight: '700', fontSize: 13 }}>Add</Text>
+              }
+            </TouchableOpacity>
+          </View>
+        </Card>
 
         {/* Categories */}
         {task.categories?.filter(c => c && (c.name || typeof c === 'string')).length > 0 && (
